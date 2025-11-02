@@ -1,0 +1,55 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+
+[System.Serializable] //반드시 필요
+public class CCTVCameraNum //행에 해당되는 이름
+{
+    public Transform[] cameraTransforms;
+}
+
+public class CCTVManager : MonoBehaviour
+{
+    public Camera cctvCamera;
+    public Image cctvImageBackground;
+
+    public CCTVCameraNum[] cctvTransform;
+    private int nowCameraNum = 0;
+    private int nowCameraPosNum = 0;
+
+    // cctv 화면 표시
+    public void ShowCCTV(int cctvNum)
+    {
+        nowCameraNum = cctvNum;
+        nowCameraPosNum = 0;
+        cctvCamera.transform.position = cctvTransform[cctvNum].cameraTransforms[0].position;
+        cctvImageBackground.gameObject.SetActive(true);
+    }
+
+    // cctv 화면 카메라 변경
+    public void OnClickSwitchCameraButton(bool right)
+    {
+        if (right) // 오른쪽 버튼
+        {
+            nowCameraPosNum++;
+            if (nowCameraPosNum >= cctvTransform[nowCameraNum].cameraTransforms.Length)
+                nowCameraPosNum = 0;
+
+            cctvCamera.transform.position = cctvTransform[nowCameraNum].cameraTransforms[nowCameraPosNum].position;
+        }
+        else // 왼쪽 버튼
+        {
+            nowCameraPosNum--;
+            if (nowCameraPosNum < 0)
+                nowCameraPosNum = cctvTransform[nowCameraNum].cameraTransforms.Length - 1;
+
+            cctvCamera.transform.position = cctvTransform[nowCameraNum].cameraTransforms[nowCameraPosNum].position;
+        }
+    }
+
+    public void CloseCCTV()
+    {
+        cctvImageBackground.gameObject.SetActive(false);
+    }
+}

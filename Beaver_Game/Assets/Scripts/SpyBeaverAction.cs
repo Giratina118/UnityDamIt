@@ -1,0 +1,128 @@
+using Photon.Pun;
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+using UnityEngine.UI;
+
+public class SpyBeaverAction : MonoBehaviourPunCallbacks
+{
+    public InventorySlotGroup inventorySlotGroup;   // 인벤토리
+    public TowerInfo towerInfo;     // 타워 정보(건설할때 사용)
+    public TimerManager timerManager;   // 타이머(타워 건설 시)
+    private TowerInfo nowTower = null;  // 현재 위치한 타워(통신을 위해)
+
+    public ButtonIconManager btnManager;
+    public GameObject towerGaugePrefab;     // 타워 통신 게이지
+    public Transform cnavasGaugesTransform; // 통신 게이지의 부모 위치
+
+    public GameWinManager gameWinManager;   // 승리(타워 일정 수 이상 필드에 동시에 존재할 경우)
+    public Transform towerParentTransfotm;  // 타워의 부모
+
+    public bool spyBeaverEscape = false;   // 스파이 비버 긴급 탈출 가능 여부(특정 시간이 되었는지)
+    public bool useEmergencyEscape = false; // 스파이 비버 긴급 탈출 사용 여부(이미 한 번 사용했는지)
+
+    [SerializeField]
+    private float decreaseTime = 30.0f; // 전파탑 건설 시 즉시 줄어드는 시간
+    private bool onTower = false;   // 타워 위에 있는지 여부(타워 건설과 통신의 상황을 구분하기 위함)
+
+
+    private void OnTriggerEnter2D(Collider2D collision) // 타워 위에 있는지 확인, 위에 있다면 타워 정보 가져오기
+    {
+        if (!this.GetComponent<PhotonView>().IsMine || !this.enabled) // 자신의 캐릭터만 움직이도록
+            return;
+
+        if (collision.gameObject.tag == "Tower") // 타워 위에 있을때
+        {
+            if (onTower) // 하나의 타워에서 완전히 벗어나기 전에 다른 타워를 밟았을 경우 이 전에 밟고있던 타워의 통신 멈춤
+            {
+                nowTower.gauge.SetActive(false);
+                timerManager.gameObject.GetPhotonView().RPC("RadioComunicationTime", RpcTarget.MasterClient, 1.0f, nowTower.gameObject.GetPhotonView().ViewID);
+            }
+            btnManager.ChangeBuildTowerComunicationButton(true); 
+
+            onTower = true; // 지금 밟은 타워로 타워 정보 설정
+            nowTower = collision.gameObject.GetComponent<TowerInfo>();
+            nowTower.gauge.SetActive(true);
+
+            timerManager.gameObject.GetPhotonView().RPC("SetTimeSpeedRecoverTimer", RpcTarget.MasterClient, nowTower.remainComunicationTime);
+        }
+    }
+
+    private void OnTriggerExit2D(Collider2D collision) // 타워에서 벗어나면 통신하던거 자동으로 종료
+    {
+        if (!this.GetComponent<PhotonView>().IsMine || !this.enabled) // 자신의 캐릭터만 움직이도록
+            return;
+
+        if (collision.gameObject.tag == "Tower")
+        {
+            btnManager.ChangeBuildTowerComunicationButton(false);
+            nowTower.SetTowerComunicationEffect(false);
+
+            onTower = false; // 밟고 있던 타워 정보 지우기
+            nowTower.gauge.SetActive(false);
+
+            timerManager.gameObject.GetPhotonView().RPC("RadioComunicationTime",   RpcTarget.MasterClient, 1.0f, nowTower.gameObject.GetPhotonView().ViewID);
+        }
+    }
+
+    public void OnClickBuildOrRadioComunicationButton() // 타워 건설 또는 통신 버튼
+    {
+        if (!this.GetComponent<PhotonView>().IsMine) // 자신의 캐릭터만 움직이도록
+            return;
+
+        if (onTower) // 타워 위에 있으면 통신
+        {
+            if (nowTower.remainComunicationTime >= 0.0f) // 타워에서 통신, 시간 줄어드는 속도 빠르게
+            {
+                timerManager.gameObject.GetPhotonView().RPC("RadioComunicationTime", RpcTarget.MasterClient, 1.0f, nowTower.gameObject.GetPhotonView().ViewID);
+                nowTower.SetTowerComunicationEffect(true);
+                timerManager.gameObject.GetPhotonView().RPC("RadioComunicationTime", RpcTarget.MasterClient, 2.0f, nowTower.gameObject.GetPhotonView().ViewID); 
+            }
+        }
+        else if (inventorySlotGroup.RequireResourceCountCheck(towerInfo.requiredResourceOfTowers)) // 타워 만들 재료가 충분하면 타워 건설
+        {
+            inventorySlotGroup.UseResource(towerInfo.requiredResourceOfTowers); // 재료 사용
+            inventorySlotGroup.NowResourceCount(); // 인벤토리 상태 갱신
+
+            GameObject newTower = PhotonNetwork.Instantiate("TowerPrefab", this.gameObject.transform.position, Quaternion.identity); // 타워 전설
+
+            newTower.transform.position = this.transform.position; // 타워 위치 조정
+
+            if (PhotonNetwork.IsMasterClient) // 타워 건설에 따른 시간 감소
+                timerManager.TowerTime(decreaseTime);
+            else
+                timerManager.timerPhotonView.RPC("TowerTime", RpcTarget.MasterClient, decreaseTime);
+
+            GameObject newGauge = PhotonNetwork.Instantiate("GaugePrefab", Vector3.zero, Quaternion.identity); // 게이지 생성
+            newTower.GetComponent<PhotonView>().RPC("SetGauge", RpcTarget.All, newGauge.GetComponent<PhotonView>().ViewID); // 타워와 게이지를 연결
+
+            gameWinManager.gameObject.GetPhotonView().RPC("TowerCountCheck", RpcTarget.All); // 타워가 일정 수 이상 지어졌는지 확인
+        }
+    }
+
+    void Start()
+    {
+        if (!this.gameObject.GetPhotonView().IsMine)
+            return;
+
+        inventorySlotGroup = GameObject.Find("InventorySlots").GetComponent<InventorySlotGroup>();
+        timerManager = GameObject.Find("Timer").GetComponent<TimerManager>();
+        cnavasGaugesTransform = GameObject.Find("Gauges").transform;
+        gameWinManager = GameObject.Find("GameOverManager").GetComponent<GameWinManager>();
+        towerParentTransfotm = GameObject.Find("Towers").transform;
+        btnManager = GameObject.Find("Buttons").GetComponent<ButtonIconManager>();
+        btnManager.buildTowerComunicationButton.onClick.AddListener(OnClickBuildOrRadioComunicationButton);
+    }
+
+    void Update()
+    {
+        if (!spyBeaverEscape && !useEmergencyEscape && timerManager.GetNowTime() <= 120.0f) // 스파이 비버의 긴급 탈출 조건 체크
+        {
+            spyBeaverEscape = true;
+            btnManager.escapePrisonButton.interactable = true;
+        }
+        //if (nowTower != null && nowTower.comunicationEffect.gameObject.activeSelf && nowTower.remainComunicationTime <= 0)
+        //    nowTower.SetTowerComunicationEffect(false);
+    }
+}

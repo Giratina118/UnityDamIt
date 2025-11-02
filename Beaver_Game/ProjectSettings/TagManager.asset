@@ -1,0 +1,58 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 2
+  tags:
+  - Forest
+  - Mud
+  - Dump
+  - Storage
+  - ResourceAction
+  - Dam
+  - Tower
+  - Inventory
+  - Item
+  - Stone
+  - ProductionCenter
+  - Map
+  - Water
+  - CCTV1
+  - CCTV2
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - 
+  - Water
+  - UI
+  - Player1
+  - Player2
+  - Player3
+  - Player4
+  - Player5
+  - OtherPlayer
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  m_SortingLayers:
+  - name: Default
+    uniqueID: 0
+    locked: 0
